@@ -1,160 +1,138 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.express as px
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="Recommendation System Dashboard", layout="wide")
 
-# ===================== TITLE =====================
-st.title("📊 Recommendation System – Managerial Insights Dashboard")
+# =====================================================
+# TITLE
+# =====================================================
+st.title("📚 Book Recommendation System – Analytics Dashboard")
 
-st.write(
-    "This dashboard converts a recommendation system project into an interactive decision-support tool. "
-    "It helps managers quickly understand data quality, patterns, trends, and relationships relevant "
-    "for recommendation systems."
-)
-
-st.divider()
-
-# ===================== TOPICS EXPLORED =====================
-st.subheader("📌 Recommendation System Concepts Covered")
-
-st.markdown("""
-- **Matrix Factorization:** Identifying hidden patterns in user–item interaction data  
-- **Content-Based Filtering:** Recommendations using item attributes  
-- **Collaborative Filtering:** Recommendations based on user behavior similarity  
-- **Cosine Similarity:** Measuring similarity between users or items  
-- **Text Embedding:** Converting textual information into numerical form for similarity analysis
+st.write("""
+This dashboard demonstrates a **Content-Based Recommendation System** using 
+**Cosine Similarity and Text Embedding (TF-IDF)** along with analytical insights 
+to support managerial decision-making.
 """)
 
 st.divider()
 
-# ===================== FILE UPLOAD =====================
-st.subheader("📂 Upload Dataset")
-uploaded_file = st.file_uploader("Upload CSV file", type="csv")
+# =====================================================
+# LOAD DATA
+# =====================================================
+df = pd.read_csv("FBDAP Dataset.csv")
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    numeric_df = df.select_dtypes(include=["int64", "float64"])
+# Cleaning
+df = df.dropna(subset=["title", "authors", "average_rating", "ratings_count"])
+df["content"] = df["title"] + " " + df["authors"]
 
-    # ===================== EXECUTIVE OVERVIEW =====================
-    st.subheader("📌 Executive Overview")
-    c1, c2, c3 = st.columns(3)
+# =====================================================
+# KPI SECTION
+# =====================================================
+st.subheader("📊 Dataset Overview")
 
-    c1.metric("Total Records", df.shape[0])
-    c2.metric("Total Variables", df.shape[1])
-    c3.metric("Numeric Features", numeric_df.shape[1])
+col1, col2, col3, col4 = st.columns(4)
 
-    st.divider()
+col1.metric("Total Books", df.shape[0])
+col2.metric("Avg Rating", round(df["average_rating"].mean(), 2))
+col3.metric("Total Ratings", int(df["ratings_count"].sum()))
+col4.metric("Unique Authors", df["authors"].nunique())
 
-    # ===================== DATA QUALITY =====================
-    st.subheader("🧹 Data Quality Check")
+st.divider()
 
-    missing_count = df.isnull().sum().sum()
-    st.write(f"**Total Missing Values:** {missing_count}")
+# =====================================================
+# DATA PREVIEW
+# =====================================================
+st.subheader("🔍 Dataset Preview")
+st.dataframe(df[["title", "authors", "average_rating", "ratings_count"]].head(10))
 
-    if missing_count == 0:
-        st.success("Dataset is clean with no missing values.")
-    else:
-        st.warning("Dataset contains missing values. Cleaning may be required.")
+st.divider()
 
-    st.divider()
+# =====================================================
+# 3D VISUALIZATION (MANAGER FRIENDLY)
+# =====================================================
+st.subheader("📈 3D Book Insights")
 
-    # ===================== DATA PREVIEW =====================
-    st.subheader("🔍 Dataset Snapshot")
-    st.dataframe(df.head(8))
+fig_3d = px.scatter_3d(
+    df.sample(500),
+    x="average_rating",
+    y="ratings_count",
+    z="  num_pages",
+    color="average_rating",
+    size="ratings_count",
+    hover_name="title",
+    title="3D View: Rating vs Popularity vs Book Size"
+)
 
-    st.divider()
+st.plotly_chart(fig_3d, use_container_width=True)
 
-    # ===================== DESCRIPTIVE STATISTICS =====================
-    st.subheader("📈 Statistical Summary (Managerial View)")
-    st.write(
-        "This section provides central tendency and variability measures "
-        "to understand overall data behavior."
+st.divider()
+
+# =====================================================
+# DISTRIBUTION INSIGHTS
+# =====================================================
+st.subheader("📊 Rating Distribution")
+
+fig_hist = px.histogram(
+    df,
+    x="average_rating",
+    nbins=20,
+    title="Distribution of Book Ratings"
+)
+
+st.plotly_chart(fig_hist, use_container_width=True)
+
+st.divider()
+
+# =====================================================
+# RECOMMENDATION SYSTEM (CORE PART)
+# =====================================================
+st.subheader("🤖 Book Recommendation System")
+
+st.write("""
+**Method Used:**  
+- Text Embedding (TF-IDF)  
+- Cosine Similarity  
+- Content-Based Filtering  
+""")
+
+# TF-IDF
+tfidf = TfidfVectorizer(stop_words="english")
+tfidf_matrix = tfidf.fit_transform(df["content"])
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+
+book_titles = df["title"].values
+selected_book = st.selectbox("Select a book", book_titles)
+
+if selected_book:
+    idx = df[df["title"] == selected_book].index[0]
+    sim_scores = list(enumerate(cosine_sim[idx]))
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:6]
+    book_indices = [i[0] for i in sim_scores]
+
+    st.write("### 📚 Recommended Books")
+    st.dataframe(
+        df.iloc[book_indices][
+            ["title", "authors", "average_rating", "ratings_count"]
+        ]
     )
-    st.dataframe(df.describe())
 
-    st.divider()
+st.divider()
 
-    # ===================== DISTRIBUTION ANALYSIS =====================
-    st.subheader("📊 Distribution Analysis")
+# =====================================================
+# MANAGERIAL INSIGHTS
+# =====================================================
+st.subheader("🧠 Managerial Insights")
 
-    if numeric_df.shape[1] > 0:
-        col = st.selectbox("Select numeric column for distribution", numeric_df.columns)
+st.markdown("""
+- Books with **high ratings and high ratings count** indicate strong market acceptance.
+- Recommendation system helps **personalize user experience**, increasing engagement.
+- Popular authors and themes can guide **inventory and marketing strategies**.
+- 3D visualization helps managers identify **high-value books quickly**.
+""")
 
-        fig, ax = plt.subplots()
-        ax.hist(df[col], bins=20)
-        ax.set_title(f"Distribution of {col}")
-        ax.set_xlabel(col)
-        ax.set_ylabel("Frequency")
-
-        st.pyplot(fig)
-
-    st.divider()
-
-    # ===================== TREND ANALYSIS =====================
-    st.subheader("⏳ Trend Analysis (Moving Average)")
-
-    if numeric_df.shape[1] > 0:
-        ts_col = st.selectbox("Select column for trend analysis", numeric_df.columns)
-        window = st.slider("Moving Average Window", 2, 10, 3)
-
-        df["Moving_Avg"] = df[ts_col].rolling(window=window).mean()
-
-        fig, ax = plt.subplots()
-        ax.plot(df[ts_col], label="Original Data")
-        ax.plot(df["Moving_Avg"], label="Moving Average")
-        ax.set_title("Trend Analysis")
-        ax.legend()
-
-        st.pyplot(fig)
-
-    st.divider()
-
-    # ===================== RELATIONSHIP ANALYSIS =====================
-    st.subheader("🔗 Relationship Analysis (For Recommendations)")
-
-    if numeric_df.shape[1] >= 2:
-        x_col = st.selectbox("Select X-axis", numeric_df.columns)
-        y_col = st.selectbox("Select Y-axis", numeric_df.columns, index=1)
-
-        fig, ax = plt.subplots()
-        ax.scatter(df[x_col], df[y_col])
-        ax.set_xlabel(x_col)
-        ax.set_ylabel(y_col)
-        ax.set_title("Relationship Between Variables")
-
-        st.pyplot(fig)
-
-        coeff = np.corrcoef(df[x_col], df[y_col])[0, 1]
-        st.write(f"**Correlation (Similarity Indicator):** {coeff:.2f}")
-
-    st.divider()
-
-    # ===================== CORRELATION HEATMAP =====================
-    st.subheader("🧠 Similarity Structure (Correlation Matrix)")
-
-    if numeric_df.shape[1] > 1:
-        corr = numeric_df.corr()
-
-        fig, ax = plt.subplots()
-        cax = ax.imshow(corr)
-        ax.set_title("Correlation Heatmap")
-        plt.colorbar(cax)
-
-        st.pyplot(fig)
-
-    st.divider()
-
-    # ===================== MANAGERIAL INSIGHTS =====================
-    st.subheader("📌 Managerial Insights")
-
-    st.markdown("""
-    - High correlations indicate potential similarity useful for collaborative filtering  
-    - Stable trends support reliable recommendation modeling  
-    - Clean data improves accuracy of similarity and factorization methods  
-    - Numeric features enable matrix-based recommendation techniques
-    """)
-
-else:
-    st.info("👆 Upload a dataset to generate insights.")
+st.success("Dashboard ready for academic evaluation and managerial decision support.")
