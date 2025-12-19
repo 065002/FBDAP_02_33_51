@@ -4,56 +4,58 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# ---------------- PAGE CONFIG ----------------
+# ================= PAGE CONFIG =================
 st.set_page_config(
     page_title="Recommendation System Dashboard",
-    page_icon="📊",
     layout="wide"
 )
 
-# ---------------- TITLE ----------------
-st.title("🚀 Recommendation System – Managerial Insights Dashboard")
+# ================= TITLE =================
+st.title("📊 Recommendation System – Analytics & Decision Dashboard")
 
-st.markdown("""
-This interactive dashboard demonstrates **Recommendation System concepts** and provides  
-**business-friendly statistical insights** from user-uploaded datasets.
-""")
+st.write(
+    "This interactive dashboard helps managers and analysts quickly derive insights "
+    "from data and understand recommendation system concepts."
+)
 
 st.divider()
 
-# ---------------- TOPICS SECTION ----------------
-st.subheader("📌 Topics Explored (Conceptual Gist)")
+# ================= CONCEPTUAL SECTION =================
+st.subheader("📌 Recommendation System Concepts (Gist)")
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("""
     **Matrix Factorization**  
-    Decomposes large interaction matrices into latent features for recommendations.
-
+    Decomposes user–item interaction matrices to uncover latent patterns.
+    
     **Content-Based Filtering**  
-    Recommends items similar to user preferences.
+    Recommends items based on similarity to user preferences.
     """)
 
 with col2:
     st.markdown("""
     **Collaborative Filtering**  
-    Uses user–user or item–item similarities.
-
-    **Cosine Similarity & Text Embedding**  
-    Converts text/features into vectors for similarity scoring.
+    Uses behavior of similar users to generate recommendations.
+    
+    **Cosine Similarity**  
+    Measures similarity between users/items using vector angles.
+    
+    **Text Embedding**  
+    Converts text into numeric vectors for similarity & recommendations.
     """)
 
 st.divider()
 
-# ---------------- FILE UPLOADER ----------------
+# ================= FILE UPLOAD =================
 st.subheader("📂 Upload Dataset")
-uploaded_file = st.file_uploader("Upload any CSV file", type=["csv"])
+uploaded_file = st.file_uploader("Upload CSV file", type="csv")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # ---------------- OVERVIEW ----------------
+    # ================= DATA OVERVIEW =================
     st.subheader("📊 Dataset Overview")
     c1, c2, c3 = st.columns(3)
     c1.metric("Rows", df.shape[0])
@@ -62,107 +64,90 @@ if uploaded_file is not None:
 
     st.divider()
 
-    # ---------------- PREVIEW ----------------
-    st.subheader("🔍 Dataset Preview")
+    # ================= DATA PREVIEW =================
+    st.subheader("🔍 Data Preview")
     st.dataframe(df.head(10))
 
     st.divider()
 
-    # ---------------- DESCRIPTIVE STATS ----------------
-    st.subheader("📈 Descriptive Statistics (Manager View)")
-    st.write("Quick summary to understand scale, spread and central tendency.")
+    # ================= DESCRIPTIVE STATS =================
+    st.subheader("📈 Descriptive Statistics")
+    st.write("Summary statistics help managers understand central tendency and spread.")
     st.dataframe(df.describe())
 
     st.divider()
 
-    # ---------------- NUMERIC DATA ----------------
+    # ================= NUMERIC DATA =================
     numeric_df = df.select_dtypes(include=["int64", "float64"])
 
-    # ---------------- DISTRIBUTION PLOT ----------------
+    # ================= DISTRIBUTION PLOT =================
     st.subheader("📊 Distribution Analysis")
-
-    if numeric_df.shape[1] > 0:
-        col = st.selectbox("Select a numeric column", numeric_df.columns)
-
+    if not numeric_df.empty:
+        col = st.selectbox("Select column", numeric_df.columns)
         fig, ax = plt.subplots()
         ax.hist(numeric_df[col], bins=20)
         ax.set_title(f"Distribution of {col}")
         st.pyplot(fig)
+    else:
+        st.info("No numeric columns found.")
 
     st.divider()
 
-    # ---------------- CORRELATION HEATMAP ----------------
-    st.subheader("🔥 Correlation Heatmap (Feature Relationships)")
-
-    if numeric_df.shape[1] >= 2:
-        corr = numeric_df.corr()
-
-        fig, ax = plt.subplots()
-        im = ax.imshow(corr)
-        plt.colorbar(im)
-        ax.set_xticks(range(len(corr.columns)))
-        ax.set_yticks(range(len(corr.columns)))
-        ax.set_xticklabels(corr.columns, rotation=45, ha="right")
-        ax.set_yticklabels(corr.columns)
-        ax.set_title("Correlation Heatmap")
-        st.pyplot(fig)
-
-    st.divider()
-
-    # ---------------- TIME SERIES ----------------
-    st.subheader("⏳ Time Series Insight (Moving Average)")
-
-    if numeric_df.shape[1] > 0:
-        ts_col = st.selectbox("Select column for trend analysis", numeric_df.columns)
-        window = st.slider("Moving Average Window", 2, 10, 3)
+    # ================= TIME SERIES (MOVING AVERAGE) =================
+    st.subheader("⏳ Trend Analysis (Moving Average)")
+    if not numeric_df.empty:
+        ts_col = st.selectbox("Select column for trend", numeric_df.columns)
+        window = st.slider("Window size", 2, 10, 3)
 
         ma = numeric_df[ts_col].rolling(window).mean()
 
         fig, ax = plt.subplots()
         ax.plot(numeric_df[ts_col], label="Original")
-        ax.plot(ma, label="Moving Average")
+        ax.plot(ma, label="Moving Avg")
         ax.legend()
-        ax.set_title("Trend Analysis")
         st.pyplot(fig)
 
     st.divider()
 
-    # ---------------- 3D VISUALIZATION ----------------
-    st.subheader("🌐 3D Visualization (Advanced Insight)")
+    # ================= REGRESSION INSIGHT =================
+    st.subheader("📐 Regression Insight")
+    if numeric_df.shape[1] >= 2:
+        x = numeric_df.iloc[:, 0]
+        y = numeric_df.iloc[:, 1]
+        coef = np.polyfit(x, y, 1)
+        st.write(f"Regression Equation: **y = {coef[0]:.2f}x + {coef[1]:.2f}**")
+    else:
+        st.info("Need at least 2 numeric columns.")
 
+    st.divider()
+
+    # ================= 3D VISUALIZATION =================
+    st.subheader("🧊 3D Data Visualization")
     if numeric_df.shape[1] >= 3:
-        x = numeric_df.columns[0]
-        y = numeric_df.columns[1]
-        z = numeric_df.columns[2]
+        x = numeric_df.iloc[:, 0]
+        y = numeric_df.iloc[:, 1]
+        z = numeric_df.iloc[:, 2]
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(
-            numeric_df[x],
-            numeric_df[y],
-            numeric_df[z],
-            c=numeric_df[z],
-            cmap="viridis"
-        )
-        ax.set_xlabel(x)
-        ax.set_ylabel(y)
-        ax.set_zlabel(z)
-        ax.set_title("3D Feature Relationship")
+        ax.scatter(x, y, z)
+        ax.set_xlabel(numeric_df.columns[0])
+        ax.set_ylabel(numeric_df.columns[1])
+        ax.set_zlabel(numeric_df.columns[2])
         st.pyplot(fig)
     else:
-        st.info("At least 3 numerical columns required for 3D plot.")
+        st.info("Need at least 3 numeric columns for 3D plot.")
 
     st.divider()
 
-    # ---------------- MANAGERIAL INSIGHTS ----------------
+    # ================= MANAGERIAL INSIGHTS =================
     st.subheader("🧠 Managerial Insights")
-
     st.markdown("""
-    - Helps identify **important variables** influencing outcomes  
-    - Reveals **patterns & trends** useful for recommendations  
-    - Supports **data-driven decision making**  
-    - Forms the foundation for **collaborative & content-based filtering**
+    - Identifies key trends and variability in data  
+    - Highlights relationships between variables  
+    - Supports data-driven recommendation strategies  
+    - Reduces manual analysis effort for decision-makers  
     """)
 
 else:
-    st.info("👆 Upload a CSV file to generate insights.")
+    st.info("👆 Upload a dataset to generate insights.")
