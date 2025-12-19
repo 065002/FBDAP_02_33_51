@@ -9,8 +9,8 @@ st.set_page_config(page_title="Recommendation System Dashboard", layout="wide")
 st.title("📊 Recommendation System – Analytics & Insights Dashboard")
 
 st.write(
-    "This deployed application provides a high-level demonstration of recommendation system concepts "
-    "along with automated statistical and analytical insights from user-uploaded datasets."
+    "This deployed application demonstrates recommendation system concepts "
+    "and generates statistical insights and visualizations from user-uploaded datasets."
 )
 
 st.divider()
@@ -19,20 +19,11 @@ st.divider()
 st.subheader("📌 Topics Explored (Conceptual Overview)")
 
 st.markdown("""
-**Matrix Factorization**  
-Used to decompose large user–item interaction matrices into latent factors for uncovering hidden patterns.
-
-**Content-Based Filtering**  
-Recommends items similar to user preferences based on item attributes.
-
-**Collaborative Filtering**  
-Generates recommendations using user behavior patterns and similarities across users.
-
-**Cosine Similarity**  
-Measures similarity between vectors and is widely used for recommendation scoring.
-
-**Text Embedding**  
-Transforms textual data into numerical vectors for similarity comparison and recommendation tasks.
+**Matrix Factorization** – Decomposes user–item matrices into latent factors  
+**Content-Based Filtering** – Recommends items based on item features  
+**Collaborative Filtering** – Uses user similarity and behavior patterns  
+**Cosine Similarity** – Measures similarity between vectors  
+**Text Embedding** – Converts text into numerical representations
 """)
 
 st.divider()
@@ -44,6 +35,9 @@ uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
+    numeric_df = df.select_dtypes(include=["int64", "float64"])
+    categorical_df = df.select_dtypes(include=["object"])
+
     # ===================== DATASET OVERVIEW =====================
     st.subheader("📊 Dataset Overview")
     col1, col2 = st.columns(2)
@@ -52,94 +46,104 @@ if uploaded_file is not None:
 
     st.divider()
 
-    # ===================== PREVIEW =====================
+    # ===================== DATA PREVIEW =====================
     st.subheader("🔍 Dataset Preview")
     st.dataframe(df.head(10))
 
     st.divider()
 
-    # ===================== DESCRIPTIVE STATISTICS =====================
+    # ===================== DESCRIPTIVE STATS =====================
     st.subheader("📈 Descriptive Statistics")
-    st.write(
-        "Provides summary statistics such as mean, standard deviation, minimum and maximum values "
-        "to understand the overall data distribution."
-    )
     st.dataframe(df.describe())
 
     st.divider()
 
-    # ===================== LINEAR ALGEBRA INSIGHTS =====================
-    st.subheader("🧮 Linear Algebra Insights (Matrix Operations)")
-    numeric_df = df.select_dtypes(include=["int64", "float64"])
+    # ===================== BOX PLOT =====================
+    st.subheader("📦 Box Plot (Outliers & Spread)")
 
     if numeric_df.shape[1] > 0:
-        st.write(
-            "Numerical columns form a data matrix that can be used for matrix operations "
-            "such as dot products and transformations in recommendation systems."
-        )
-        st.write("**Matrix Shape:**", numeric_df.shape)
-    else:
-        st.info("No numerical columns available for matrix operations.")
-
-    st.divider()
-
-    # ===================== TIME SERIES INSIGHTS =====================
-    st.subheader("⏳ Time Series Insights (Moving Average)")
-
-    if numeric_df.shape[1] > 0:
-        ts_column = st.selectbox(
-            "Select a numerical column for Moving Average analysis",
-            numeric_df.columns
-        )
-
-        window = st.slider("Moving Average Window Size", 2, 10, 3)
-
-        df["Moving_Avg"] = df[ts_column].rolling(window=window).mean()
-
+        box_col = st.selectbox("Select column for boxplot", numeric_df.columns)
         fig, ax = plt.subplots()
-        ax.plot(df[ts_column], label="Original Data")
-        ax.plot(df["Moving_Avg"], label="Moving Average")
-        ax.set_title("Moving Average Trend Analysis")
-        ax.legend()
-
+        ax.boxplot(df[box_col].dropna())
+        ax.set_title(f"Box Plot of {box_col}")
         st.pyplot(fig)
     else:
-        st.info("Time series analysis requires numerical data.")
+        st.info("No numerical columns available for boxplot.")
 
     st.divider()
 
-    # ===================== PROBABILITY & STATISTICS =====================
-    st.subheader("📐 Probability & Statistical Insights")
-
-    st.write("""
-    - **Descriptive Statistics:** Central tendency and dispersion of data  
-    - **Probability & Distribution:** Understanding spread and likelihood patterns  
-    - **Inferential Statistics:** Basis for hypothesis testing and confidence estimation  
-    - **Regression:** Relationship analysis between dependent and independent variables
-    """)
+    # ===================== CORRELATION HEATMAP =====================
+    st.subheader("🔥 Correlation Heatmap")
 
     if numeric_df.shape[1] >= 2:
-        x_col = numeric_df.columns[0]
-        y_col = numeric_df.columns[1]
-
-        coeff = np.polyfit(df[x_col], df[y_col], 1)
-        st.write(f"**Regression Insight:** `{y_col} = {coeff[0]:.2f} × {x_col} + {coeff[1]:.2f}`")
+        corr = numeric_df.corr()
+        fig, ax = plt.subplots()
+        cax = ax.matshow(corr)
+        fig.colorbar(cax)
+        ax.set_xticks(range(len(corr.columns)))
+        ax.set_yticks(range(len(corr.columns)))
+        ax.set_xticklabels(corr.columns, rotation=90)
+        ax.set_yticklabels(corr.columns)
+        ax.set_title("Correlation Matrix", pad=20)
+        st.pyplot(fig)
+    else:
+        st.info("Correlation requires at least two numerical variables.")
 
     st.divider()
 
-    # ===================== VISUAL INSIGHTS =====================
-    st.subheader("📊 Visual Distribution Analysis")
+    # ===================== SCATTER PLOT =====================
+    st.subheader("📍 Scatter Plot (Relationship Analysis)")
 
-    if numeric_df.shape[1] > 0:
-        selected_col = st.selectbox("Select column for distribution", numeric_df.columns)
+    if numeric_df.shape[1] >= 2:
+        x_axis = st.selectbox("X-axis", numeric_df.columns, key="x")
+        y_axis = st.selectbox("Y-axis", numeric_df.columns, key="y")
 
         fig, ax = plt.subplots()
-        ax.hist(df[selected_col], bins=20)
-        ax.set_title(f"Distribution of {selected_col}")
-        ax.set_xlabel(selected_col)
-        ax.set_ylabel("Frequency")
-
+        ax.scatter(df[x_axis], df[y_axis])
+        ax.set_xlabel(x_axis)
+        ax.set_ylabel(y_axis)
+        ax.set_title(f"{x_axis} vs {y_axis}")
         st.pyplot(fig)
+    else:
+        st.info("Scatter plot requires at least two numerical columns.")
+
+    st.divider()
+
+    # ===================== TIME SERIES =====================
+    st.subheader("⏳ Time Series – Moving Average")
+
+    if numeric_df.shape[1] > 0:
+        ts_col = st.selectbox("Select column for trend analysis", numeric_df.columns)
+        window = st.slider("Moving Average Window", 2, 10, 3)
+
+        ma = df[ts_col].rolling(window=window).mean()
+
+        fig, ax = plt.subplots()
+        ax.plot(df[ts_col], label="Original")
+        ax.plot(ma, label="Moving Average")
+        ax.legend()
+        ax.set_title("Trend Analysis")
+        st.pyplot(fig)
+    else:
+        st.info("No numerical data for time series analysis.")
+
+    st.divider()
+
+    # ===================== CATEGORICAL DISTRIBUTION =====================
+    st.subheader("🧩 Categorical Distribution")
+
+    if categorical_df.shape[1] > 0:
+        cat_col = st.selectbox("Select categorical column", categorical_df.columns)
+        counts = df[cat_col].value_counts()
+
+        fig, ax = plt.subplots()
+        ax.bar(counts.index.astype(str), counts.values)
+        ax.set_title(f"Category Count: {cat_col}")
+        ax.set_ylabel("Frequency")
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+    else:
+        st.info("No categorical columns found.")
 
 else:
-    st.info("👆 Upload a dataset to generate insights.")
+    st.info("👆 Upload a dataset to generate insights and visualizations.")
