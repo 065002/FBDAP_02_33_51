@@ -2,152 +2,139 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.decomposition import TruncatedSVD
 
-# ================= PAGE CONFIG =================
-st.set_page_config(
-    page_title="Recommendation System Dashboard",
-    layout="wide"
-)
+st.set_page_config(page_title="Recommendation System Dashboard", layout="wide")
 
-# ================= TITLE =================
-st.title("📊 Recommendation System – Analytics & Decision Dashboard")
+# ===================== TITLE =====================
+st.title("📊 Recommendation System – Analytics & Decision Support Dashboard")
 
-st.write(
-    "This interactive dashboard helps managers and analysts quickly derive insights "
-    "from data and understand recommendation system concepts."
-)
+st.write("""
+This dashboard demonstrates **recommendation system concepts** and 
+**managerial insights** using uploaded business datasets.
+""")
 
 st.divider()
 
-# ================= CONCEPTUAL SECTION =================
+# ===================== CONCEPTUAL OVERVIEW =====================
 st.subheader("📌 Recommendation System Concepts (Gist)")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("""
-    **Matrix Factorization**  
-    Decomposes user–item interaction matrices to uncover latent patterns.
-    
-    **Content-Based Filtering**  
-    Recommends items based on similarity to user preferences.
-    """)
-
-with col2:
-    st.markdown("""
-    **Collaborative Filtering**  
-    Uses behavior of similar users to generate recommendations.
-    
-    **Cosine Similarity**  
-    Measures similarity between users/items using vector angles.
-    
-    **Text Embedding**  
-    Converts text into numeric vectors for similarity & recommendations.
-    """)
+st.markdown("""
+- **Matrix Factorization**: Decomposes large user–item matrices to uncover latent patterns.  
+- **Content-Based Filtering**: Recommends items similar to user preferences.  
+- **Collaborative Filtering**: Uses user behavior similarities for recommendations.  
+- **Cosine Similarity**: Measures similarity between users or items.  
+- **Text Embedding**: Converts text into numerical vectors for similarity analysis.
+""")
 
 st.divider()
 
-# ================= FILE UPLOAD =================
-st.subheader("📂 Upload Dataset")
-uploaded_file = st.file_uploader("Upload CSV file", type="csv")
+# ===================== FILE UPLOAD =====================
+uploaded_file = st.file_uploader("📂 Upload CSV Dataset", type="csv")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # ================= DATA OVERVIEW =================
+    # ===================== OVERVIEW =====================
     st.subheader("📊 Dataset Overview")
     c1, c2, c3 = st.columns(3)
     c1.metric("Rows", df.shape[0])
     c2.metric("Columns", df.shape[1])
-    c3.metric("Missing Values", df.isnull().sum().sum())
+    c3.metric("Missing Values", int(df.isnull().sum().sum()))
 
     st.divider()
 
-    # ================= DATA PREVIEW =================
+    # ===================== PREVIEW =====================
     st.subheader("🔍 Data Preview")
-    st.dataframe(df.head(10))
+    st.dataframe(df.head())
 
-    st.divider()
-
-    # ================= DESCRIPTIVE STATS =================
-    st.subheader("📈 Descriptive Statistics")
-    st.write("Summary statistics help managers understand central tendency and spread.")
-    st.dataframe(df.describe())
-
-    st.divider()
-
-    # ================= NUMERIC DATA =================
+    # ===================== NUMERIC DATA =====================
     numeric_df = df.select_dtypes(include=["int64", "float64"])
 
-    # ================= DISTRIBUTION PLOT =================
-    st.subheader("📊 Distribution Analysis")
-    if not numeric_df.empty:
-        col = st.selectbox("Select column", numeric_df.columns)
-        fig, ax = plt.subplots()
-        ax.hist(numeric_df[col], bins=20)
-        ax.set_title(f"Distribution of {col}")
-        st.pyplot(fig)
-    else:
-        st.info("No numeric columns found.")
+    st.divider()
+
+    # ===================== DESCRIPTIVE STATS =====================
+    st.subheader("📈 Descriptive Statistics")
+    st.dataframe(numeric_df.describe())
 
     st.divider()
 
-    # ================= TIME SERIES (MOVING AVERAGE) =================
-    st.subheader("⏳ Trend Analysis (Moving Average)")
-    if not numeric_df.empty:
-        ts_col = st.selectbox("Select column for trend", numeric_df.columns)
-        window = st.slider("Window size", 2, 10, 3)
+    # ===================== CORRELATION HEATMAP =====================
+    if numeric_df.shape[1] > 1:
+        st.subheader("🔥 Correlation Heatmap (Managerial Insight)")
+        fig, ax = plt.subplots()
+        cax = ax.matshow(numeric_df.corr())
+        fig.colorbar(cax)
+        ax.set_title("Correlation Between Numerical Variables")
+        st.pyplot(fig)
 
-        ma = numeric_df[ts_col].rolling(window).mean()
+    st.divider()
+
+    # ===================== MOVING AVERAGE =====================
+    st.subheader("⏳ Time Series Trend (Moving Average)")
+
+    if numeric_df.shape[1] > 0:
+        col = st.selectbox("Select Column", numeric_df.columns)
+        window = st.slider("Window Size", 2, 10, 3)
+
+        df["MA"] = numeric_df[col].rolling(window).mean()
 
         fig, ax = plt.subplots()
-        ax.plot(numeric_df[ts_col], label="Original")
-        ax.plot(ma, label="Moving Avg")
+        ax.plot(numeric_df[col], label="Original")
+        ax.plot(df["MA"], label="Moving Avg")
         ax.legend()
         st.pyplot(fig)
 
     st.divider()
 
-    # ================= REGRESSION INSIGHT =================
-    st.subheader("📐 Regression Insight")
+    # ===================== REGRESSION =====================
+    st.subheader("📐 Regression Insight (Inferential Statistics)")
+
     if numeric_df.shape[1] >= 2:
         x = numeric_df.iloc[:, 0]
         y = numeric_df.iloc[:, 1]
         coef = np.polyfit(x, y, 1)
-        st.write(f"Regression Equation: **y = {coef[0]:.2f}x + {coef[1]:.2f}**")
-    else:
-        st.info("Need at least 2 numeric columns.")
+        st.write(f"**Regression Equation:** y = {coef[0]:.2f}x + {coef[1]:.2f}")
 
     st.divider()
 
-    # ================= 3D VISUALIZATION =================
-    st.subheader("🧊 3D Data Visualization")
-    if numeric_df.shape[1] >= 3:
-        x = numeric_df.iloc[:, 0]
-        y = numeric_df.iloc[:, 1]
-        z = numeric_df.iloc[:, 2]
+    # ===================== COSINE SIMILARITY =====================
+    st.subheader("🧭 Cosine Similarity (Recommendation Logic)")
 
+    if numeric_df.shape[1] > 1:
+        sim = cosine_similarity(numeric_df.fillna(0))
+        st.write("Sample Similarity Matrix:")
+        st.dataframe(sim[:5, :5])
+
+    st.divider()
+
+    # ===================== MATRIX FACTORIZATION =====================
+    st.subheader("🧮 Matrix Factorization (SVD – Conceptual Demo)")
+
+    if numeric_df.shape[1] > 1:
+        svd = TruncatedSVD(n_components=2)
+        reduced = svd.fit_transform(numeric_df.fillna(0))
+        st.write("Latent Factors (Sample):")
+        st.dataframe(reduced[:5])
+
+    st.divider()
+
+    # ===================== 3D VISUALIZATION =====================
+    st.subheader("🧊 3D Visualization (Latent Space View)")
+
+    if numeric_df.shape[1] >= 3:
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(x, y, z)
+        ax = fig.add_subplot(111, projection="3d")
+        ax.scatter(
+            numeric_df.iloc[:, 0],
+            numeric_df.iloc[:, 1],
+            numeric_df.iloc[:, 2]
+        )
         ax.set_xlabel(numeric_df.columns[0])
         ax.set_ylabel(numeric_df.columns[1])
         ax.set_zlabel(numeric_df.columns[2])
         st.pyplot(fig)
-    else:
-        st.info("Need at least 3 numeric columns for 3D plot.")
-
-    st.divider()
-
-    # ================= MANAGERIAL INSIGHTS =================
-    st.subheader("🧠 Managerial Insights")
-    st.markdown("""
-    - Identifies key trends and variability in data  
-    - Highlights relationships between variables  
-    - Supports data-driven recommendation strategies  
-    - Reduces manual analysis effort for decision-makers  
-    """)
 
 else:
-    st.info("👆 Upload a dataset to generate insights.")
+    st.info("👆 Upload a dataset to activate the dashboard.")
