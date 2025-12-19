@@ -6,144 +6,155 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Recommendation System Dashboard", layout="wide")
 
 # ===================== TITLE =====================
-st.title("📊 Recommendation System – Analytics & Insights Dashboard")
+st.title("📊 Recommendation System – Managerial Insights Dashboard")
 
 st.write(
-    "This deployed application demonstrates recommendation system concepts "
-    "and generates statistical insights and visualizations from user-uploaded datasets."
+    "This dashboard converts a recommendation system project into an interactive decision-support tool. "
+    "It helps managers quickly understand data quality, patterns, trends, and relationships relevant "
+    "for recommendation systems."
 )
 
 st.divider()
 
 # ===================== TOPICS EXPLORED =====================
-st.subheader("📌 Topics Explored (Conceptual Overview)")
+st.subheader("📌 Recommendation System Concepts Covered")
 
 st.markdown("""
-**Matrix Factorization** – Decomposes user–item matrices into latent factors  
-**Content-Based Filtering** – Recommends items based on item features  
-**Collaborative Filtering** – Uses user similarity and behavior patterns  
-**Cosine Similarity** – Measures similarity between vectors  
-**Text Embedding** – Converts text into numerical representations
+- **Matrix Factorization:** Identifying hidden patterns in user–item interaction data  
+- **Content-Based Filtering:** Recommendations using item attributes  
+- **Collaborative Filtering:** Recommendations based on user behavior similarity  
+- **Cosine Similarity:** Measuring similarity between users or items  
+- **Text Embedding:** Converting textual information into numerical form for similarity analysis
 """)
 
 st.divider()
 
 # ===================== FILE UPLOAD =====================
 st.subheader("📂 Upload Dataset")
-uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
+uploaded_file = st.file_uploader("Upload CSV file", type="csv")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-
     numeric_df = df.select_dtypes(include=["int64", "float64"])
-    categorical_df = df.select_dtypes(include=["object"])
 
-    # ===================== DATASET OVERVIEW =====================
-    st.subheader("📊 Dataset Overview")
-    col1, col2 = st.columns(2)
-    col1.metric("Total Rows", df.shape[0])
-    col2.metric("Total Columns", df.shape[1])
+    # ===================== EXECUTIVE OVERVIEW =====================
+    st.subheader("📌 Executive Overview")
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Total Records", df.shape[0])
+    c2.metric("Total Variables", df.shape[1])
+    c3.metric("Numeric Features", numeric_df.shape[1])
+
+    st.divider()
+
+    # ===================== DATA QUALITY =====================
+    st.subheader("🧹 Data Quality Check")
+
+    missing_count = df.isnull().sum().sum()
+    st.write(f"**Total Missing Values:** {missing_count}")
+
+    if missing_count == 0:
+        st.success("Dataset is clean with no missing values.")
+    else:
+        st.warning("Dataset contains missing values. Cleaning may be required.")
 
     st.divider()
 
     # ===================== DATA PREVIEW =====================
-    st.subheader("🔍 Dataset Preview")
-    st.dataframe(df.head(10))
+    st.subheader("🔍 Dataset Snapshot")
+    st.dataframe(df.head(8))
 
     st.divider()
 
-    # ===================== DESCRIPTIVE STATS =====================
-    st.subheader("📈 Descriptive Statistics")
+    # ===================== DESCRIPTIVE STATISTICS =====================
+    st.subheader("📈 Statistical Summary (Managerial View)")
+    st.write(
+        "This section provides central tendency and variability measures "
+        "to understand overall data behavior."
+    )
     st.dataframe(df.describe())
 
     st.divider()
 
-    # ===================== BOX PLOT =====================
-    st.subheader("📦 Box Plot (Outliers & Spread)")
+    # ===================== DISTRIBUTION ANALYSIS =====================
+    st.subheader("📊 Distribution Analysis")
 
     if numeric_df.shape[1] > 0:
-        box_col = st.selectbox("Select column for boxplot", numeric_df.columns)
+        col = st.selectbox("Select numeric column for distribution", numeric_df.columns)
+
         fig, ax = plt.subplots()
-        ax.boxplot(df[box_col].dropna())
-        ax.set_title(f"Box Plot of {box_col}")
+        ax.hist(df[col], bins=20)
+        ax.set_title(f"Distribution of {col}")
+        ax.set_xlabel(col)
+        ax.set_ylabel("Frequency")
+
         st.pyplot(fig)
-    else:
-        st.info("No numerical columns available for boxplot.")
 
     st.divider()
 
-    # ===================== CORRELATION HEATMAP =====================
-    st.subheader("🔥 Correlation Heatmap")
-
-    if numeric_df.shape[1] >= 2:
-        corr = numeric_df.corr()
-        fig, ax = plt.subplots()
-        cax = ax.matshow(corr)
-        fig.colorbar(cax)
-        ax.set_xticks(range(len(corr.columns)))
-        ax.set_yticks(range(len(corr.columns)))
-        ax.set_xticklabels(corr.columns, rotation=90)
-        ax.set_yticklabels(corr.columns)
-        ax.set_title("Correlation Matrix", pad=20)
-        st.pyplot(fig)
-    else:
-        st.info("Correlation requires at least two numerical variables.")
-
-    st.divider()
-
-    # ===================== SCATTER PLOT =====================
-    st.subheader("📍 Scatter Plot (Relationship Analysis)")
-
-    if numeric_df.shape[1] >= 2:
-        x_axis = st.selectbox("X-axis", numeric_df.columns, key="x")
-        y_axis = st.selectbox("Y-axis", numeric_df.columns, key="y")
-
-        fig, ax = plt.subplots()
-        ax.scatter(df[x_axis], df[y_axis])
-        ax.set_xlabel(x_axis)
-        ax.set_ylabel(y_axis)
-        ax.set_title(f"{x_axis} vs {y_axis}")
-        st.pyplot(fig)
-    else:
-        st.info("Scatter plot requires at least two numerical columns.")
-
-    st.divider()
-
-    # ===================== TIME SERIES =====================
-    st.subheader("⏳ Time Series – Moving Average")
+    # ===================== TREND ANALYSIS =====================
+    st.subheader("⏳ Trend Analysis (Moving Average)")
 
     if numeric_df.shape[1] > 0:
         ts_col = st.selectbox("Select column for trend analysis", numeric_df.columns)
         window = st.slider("Moving Average Window", 2, 10, 3)
 
-        ma = df[ts_col].rolling(window=window).mean()
+        df["Moving_Avg"] = df[ts_col].rolling(window=window).mean()
 
         fig, ax = plt.subplots()
-        ax.plot(df[ts_col], label="Original")
-        ax.plot(ma, label="Moving Average")
-        ax.legend()
+        ax.plot(df[ts_col], label="Original Data")
+        ax.plot(df["Moving_Avg"], label="Moving Average")
         ax.set_title("Trend Analysis")
+        ax.legend()
+
         st.pyplot(fig)
-    else:
-        st.info("No numerical data for time series analysis.")
 
     st.divider()
 
-    # ===================== CATEGORICAL DISTRIBUTION =====================
-    st.subheader("🧩 Categorical Distribution")
+    # ===================== RELATIONSHIP ANALYSIS =====================
+    st.subheader("🔗 Relationship Analysis (For Recommendations)")
 
-    if categorical_df.shape[1] > 0:
-        cat_col = st.selectbox("Select categorical column", categorical_df.columns)
-        counts = df[cat_col].value_counts()
+    if numeric_df.shape[1] >= 2:
+        x_col = st.selectbox("Select X-axis", numeric_df.columns)
+        y_col = st.selectbox("Select Y-axis", numeric_df.columns, index=1)
 
         fig, ax = plt.subplots()
-        ax.bar(counts.index.astype(str), counts.values)
-        ax.set_title(f"Category Count: {cat_col}")
-        ax.set_ylabel("Frequency")
-        plt.xticks(rotation=45)
+        ax.scatter(df[x_col], df[y_col])
+        ax.set_xlabel(x_col)
+        ax.set_ylabel(y_col)
+        ax.set_title("Relationship Between Variables")
+
         st.pyplot(fig)
-    else:
-        st.info("No categorical columns found.")
+
+        coeff = np.corrcoef(df[x_col], df[y_col])[0, 1]
+        st.write(f"**Correlation (Similarity Indicator):** {coeff:.2f}")
+
+    st.divider()
+
+    # ===================== CORRELATION HEATMAP =====================
+    st.subheader("🧠 Similarity Structure (Correlation Matrix)")
+
+    if numeric_df.shape[1] > 1:
+        corr = numeric_df.corr()
+
+        fig, ax = plt.subplots()
+        cax = ax.imshow(corr)
+        ax.set_title("Correlation Heatmap")
+        plt.colorbar(cax)
+
+        st.pyplot(fig)
+
+    st.divider()
+
+    # ===================== MANAGERIAL INSIGHTS =====================
+    st.subheader("📌 Managerial Insights")
+
+    st.markdown("""
+    - High correlations indicate potential similarity useful for collaborative filtering  
+    - Stable trends support reliable recommendation modeling  
+    - Clean data improves accuracy of similarity and factorization methods  
+    - Numeric features enable matrix-based recommendation techniques
+    """)
 
 else:
-    st.info("👆 Upload a dataset to generate insights and visualizations.")
+    st.info("👆 Upload a dataset to generate insights.")
