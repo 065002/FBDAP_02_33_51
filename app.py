@@ -3,75 +3,91 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-st.set_page_config(page_title="Book Recommendation System", layout="centered")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Book Recommendation System",
+    layout="centered"
+)
 
-# ===================== TITLE =====================
+# ---------------- TITLE ----------------
 st.title("📚 Book Recommendation System")
 
 st.write(
-    "This application recommends books based on similarity using "
-    "content-based filtering and cosine similarity."
+    "Enter a book name (full or partial). "
+    "The system will recommend similar books using text similarity."
 )
 
 st.divider()
 
-# ===================== FILE UPLOAD =====================
-uploaded_file = st.file_uploader("Upload Book Dataset (CSV)", type="csv")
+# ---------------- FILE UPLOAD ----------------
+uploaded_file = st.file_uploader(
+    "Upload Book Dataset (CSV)",
+    type=["csv"]
+)
 
 if uploaded_file is not None:
+
+    # Load dataset safely
     df = pd.read_csv(uploaded_file)
 
-    st.subheader("Dataset Preview")
-    st.dataframe(df.head())
+    st.success("Dataset uploaded successfully")
 
-    st.divider()
+    # ---------------- COLUMN SELECTION ----------------
+    st.subheader("Select Book Title Column")
 
-    # ===================== COLUMN SELECTION =====================
-    st.subheader("Select Book Column")
-
-    text_column = st.selectbox(
-        "Choose the column containing book titles or descriptions",
+    book_column = st.selectbox(
+        "Choose the column that contains book names",
         df.columns
     )
 
-    # Clean data
-    df = df[[text_column]].dropna()
-    df[text_column] = df[text_column].astype(str)
-
-    st.success("Column selected successfully")
+    # Clean book names
+    df = df[[book_column]].dropna()
+    df[book_column] = df[book_column].astype(str)
 
     st.divider()
 
-    # ===================== USER INPUT =====================
-    st.subheader("Enter a Book Name")
+    # ---------------- USER INPUT ----------------
+    st.subheader("Enter Book Name")
 
-    user_input = st.text_input("Type a book name from the dataset")
+    user_input = st.text_input(
+        "Type a book name (partial names also work)",
+        placeholder="e.g. Harry, Atomic, Rich, Data..."
+    )
 
+    # ---------------- RECOMMENDATION LOGIC ----------------
     if user_input:
 
-        # ===================== VECTORIZE =====================
-        tfidf = TfidfVectorizer(stop_words="english")
-        tfidf_matrix = tfidf.fit_transform(df[text_column])
+        # TF-IDF Vectorization
+        vectorizer = TfidfVectorizer(stop_words="english")
+        tfidf_matrix = vectorizer.fit_transform(df[book_column])
 
-        # ===================== SIMILARITY =====================
-        similarity = cosine_similarity(tfidf_matrix, tfidf_matrix)
+        # Transform user input
+        user_vector = vectorizer.transform([user_input])
 
-        # Find matching book
-        if user_input not in df[text_column].values:
-            st.error("Book not found in dataset. Please check spelling.")
+        # Cosine similarity
+        similarity_scores = cosine_similarity(user_vector, tfidf_matrix).flatten()
+
+        # Get top matches
+        df["similarity"] = similarity_scores
+        recommendations = df.sort_values(
+            by="similarity",
+            ascending=False
+        )
+
+        recommendations = recommendations[
+            recommendations["similarity"] > 0
+        ].head(10)
+
+        st.divider()
+
+        # ---------------- OUTPUT ----------------
+        st.subheader("📖 Recommended Books")
+
+        if len(recommendations) == 0:
+            st.warning("No similar books found. Try another keyword.")
         else:
-            index = df[df[text_column] == user_input].index[0]
-            scores = list(enumerate(similarity[index]))
-            scores = sorted(scores, key=lambda x: x[1], reverse=True)
-
-            st.subheader("📖 Recommended Books")
-
-            recommendations = []
-            for i in scores[1:6]:
-                recommendations.append(df.iloc[i[0]][text_column])
-
-            for book in recommendations:
-                st.write("•", book)
+            for i, book in enumerate(recommendations[book_column], start=1):
+                st.write(f"{i}. {book}")
 
 else:
-    st.info("Upload a CSV file to start recommending books.")
+    st.info("👆 Upload a CSV file to start")
