@@ -1,127 +1,123 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="Book Recommendation System", layout="wide")
+# --------------------------------------------------
+# PAGE SETUP
+# --------------------------------------------------
+st.set_page_config(
+    page_title="Book Recommendation System",
+    layout="centered"
+)
 
-# ---------------- TITLE ----------------
 st.title("📚 Book Recommendation System")
 
 st.write(
-    "This application recommends books **from the uploaded dataset** based on user-selected criteria "
-    "such as author, title, or other attributes."
+    "This application recommends books **from the given dataset only**, "
+    "based on user-selected preferences such as author, book title, or ratings."
 )
 
-# ---------------- FILE UPLOAD ----------------
-uploaded_file = st.file_uploader("📂 Upload Book Dataset (CSV)", type="csv")
+st.divider()
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+# --------------------------------------------------
+# LOAD DATA (PRE-UPLOADED DATASET)
+# --------------------------------------------------
+@st.cache_data
+def load_data():
+    return pd.read_csv("FBDAP Dataset.csv")
 
-    # Clean column names
-    df.columns = df.columns.str.strip()
+df = load_data()
 
-    # ---------------- TABS ----------------
-    tab1, tab2 = st.tabs(["🔍 Recommendation System", "📊 Dataset Insights & Concepts"])
+# --------------------------------------------------
+# SECTION 1: RECOMMENDATION SYSTEM
+# --------------------------------------------------
+st.header("🔍 Get Book Recommendations")
 
-    # =========================================================
-    # TAB 1: RECOMMENDATION SYSTEM
-    # =========================================================
-    with tab1:
-        st.subheader("🔎 Get Book Recommendations")
+# Let user choose column
+column_choice = st.selectbox(
+    "Select the field you want to search by",
+    df.columns
+)
 
-        # Select column for recommendation
-        selected_column = st.selectbox(
-            "Select column to search (Author / Book / etc.)",
-            df.columns
+# User input (partial match allowed)
+user_input = st.text_input(
+    f"Enter {column_choice} (partial text allowed)"
+)
+
+# Number of recommendations
+top_n = st.slider(
+    "Number of recommendations",
+    min_value=1,
+    max_value=20,
+    value=5
+)
+
+# Optional rating filter
+numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns
+
+min_rating = None
+if len(numeric_cols) > 0:
+    rating_col = st.selectbox(
+        "Select rating column (optional)",
+        ["None"] + list(numeric_cols)
+    )
+
+    if rating_col != "None":
+        min_rating = st.slider(
+            "Minimum rating",
+            float(df[rating_col].min()),
+            float(df[rating_col].max()),
+            float(df[rating_col].min())
         )
 
-        # User input (partial match allowed)
-        user_input = st.text_input(
-            f"Enter {selected_column} (partial text allowed)",
-            placeholder="e.g. jk rowling"
-        )
+# --------------------------------------------------
+# RECOMMENDATION LOGIC
+# --------------------------------------------------
+if user_input:
+    filtered_df = df[
+        df[column_choice]
+        .astype(str)
+        .str.contains(user_input, case=False, na=False)
+    ]
 
-        # Number of recommendations
-        top_n = st.slider(
-            "Number of recommendations",
-            min_value=1,
-            max_value=20,
-            value=5
-        )
+    if min_rating is not None:
+        filtered_df = filtered_df[filtered_df[rating_col] >= min_rating]
 
-        # Optional rating filter
-        rating_column = None
-        for col in df.columns:
-            if "rating" in col.lower():
-                rating_column = col
-                break
+    if filtered_df.empty:
+        st.warning("No matching books found.")
+    else:
+        st.success("Recommended books from the dataset:")
+        st.dataframe(filtered_df.head(top_n))
 
-        if rating_column:
-            min_rating = st.slider(
-                f"Minimum {rating_column}",
-                float(df[rating_column].min()),
-                float(df[rating_column].max()),
-                float(df[rating_column].min())
-            )
-        else:
-            min_rating = None
+st.divider()
 
-        # ---------------- FILTER LOGIC ----------------
-        if user_input:
-            filtered_df = df[
-                df[selected_column]
-                .astype(str)
-                .str.contains(user_input, case=False, na=False)
-            ]
+# --------------------------------------------------
+# SECTION 2: DATASET INSIGHTS
+# --------------------------------------------------
+st.header("📊 Dataset Insights")
 
-            if rating_column and min_rating is not None:
-                filtered_df = filtered_df[filtered_df[rating_column] >= min_rating]
+# Basic overview
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Books", df.shape[0])
+c2.metric("Total Columns", df.shape[1])
+c3.metric("Missing Values", int(df.isnull().sum().sum()))
 
-            if filtered_df.empty:
-                st.warning("No matching books found in the dataset.")
-            else:
-                st.success(f"Showing top {top_n} recommendations")
-                st.dataframe(filtered_df.head(top_n))
+st.subheader("📌 Topics Covered (Conceptual Overview)")
+st.markdown("""
+- **Matrix Factorization** – Latent factor discovery for recommendations  
+- **Content-Based Filtering** – Recommendations based on item attributes  
+- **Collaborative Filtering** – Similar user/item behavior  
+- **Cosine Similarity** – Measures similarity between items/users  
+- **Text Embedding** – Vectorizing text features for similarity matching  
+""")
 
-    # =========================================================
-    # TAB 2: INSIGHTS & CONCEPTS
-    # =========================================================
-    with tab2:
-        st.subheader("📊 Dataset Overview")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Rows", df.shape[0])
-        c2.metric("Total Columns", df.shape[1])
-        c3.metric("Missing Values", int(df.isnull().sum().sum()))
-
-        st.divider()
-
-        st.subheader("📌 Recommendation System Concepts (Gist)")
-        st.markdown("""
-        **Matrix Factorization**  
-        Breaks user–item interaction matrices into latent factors to discover hidden preferences.
-
-        **Content-Based Filtering**  
-        Recommends books similar to those a user likes based on attributes such as author or genre.
-
-        **Collaborative Filtering**  
-        Uses similarities between users or items to generate recommendations.
-
-        **Cosine Similarity**  
-        Measures similarity between vectors and is widely used in recommendation scoring.
-
-        **Text Embedding**  
-        Converts textual data (titles, authors) into numerical vectors for similarity comparison.
-        """)
-
-        st.divider()
-
-        st.subheader("📈 Basic Statistical Insights")
-        numeric_df = df.select_dtypes(include=["int64", "float64"])
-        if not numeric_df.empty:
-            st.dataframe(numeric_df.describe())
-        else:
-            st.info("No numerical columns available for statistical analysis.")
-
+st.subheader("📈 Descriptive Statistics (Numerical Columns)")
+numeric_df = df.select_dtypes(include=["int64", "float64"])
+if not numeric_df.empty:
+    st.dataframe(numeric_df.describe())
 else:
-    st.info("👆 Please upload the dataset to start using the Book Recommendation System.")
+    st.info("No numerical columns available.")
+
+st.subheader("🔍 Dataset Preview")
+st.dataframe(df.head(10))
