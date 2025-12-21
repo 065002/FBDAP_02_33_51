@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="Book Recommendation System",
     layout="centered"
@@ -12,127 +9,94 @@ st.set_page_config(
 
 st.title("📚 Book Recommendation System")
 
-# --------------------------------------------------
-# LOAD DATA (PRE-UPLOADED DATASET)
-# --------------------------------------------------
+st.write(
+    "This application recommends books **only from the given dataset** "
+    "based on user-selected criteria such as author, title, or publisher."
+)
+
+st.divider()
+
+# ---------------- LOAD DATA (PRE-UPLOADED) ----------------
 @st.cache_data
 def load_data():
-    return pd.read_csv("FBDAP Dataset.csv")
+    df = pd.read_csv("FBDAP Dataset.csv", encoding="latin-1")
+    df.columns = df.columns.str.strip().str.lower()
+    return df
 
 df = load_data()
 
-# --------------------------------------------------
-# SIDEBAR NAVIGATION
-# --------------------------------------------------
-menu = st.sidebar.radio(
-    "Navigate",
-    ["Book Recommendation System", "Dataset Insights"]
+# ---------------- USER INPUTS ----------------
+st.subheader("🔎 Find Book Recommendations")
+
+search_column = st.selectbox(
+    "Select search type",
+    options=df.columns,
+    index=df.columns.get_loc("authors") if "authors" in df.columns else 0
 )
 
-# ==================================================
-# 1️⃣ BOOK RECOMMENDATION SYSTEM
-# ==================================================
-if menu == "Book Recommendation System":
+search_text = st.text_input(
+    f"Enter {search_column} (partial text allowed)"
+)
 
-    st.subheader("🔍 Find Book Recommendations")
+num_recs = st.number_input(
+    "Number of recommendations",
+    min_value=1,
+    max_value=20,
+    value=5
+)
 
-    # Select column to search
-    search_column = st.selectbox(
-        "Select search type",
-        df.columns
-    )
+rating_column = st.selectbox(
+    "Select rating column (optional)",
+    options=["None"] + df.select_dtypes(include="number").columns.tolist()
+)
 
-    # User input (partial match allowed)
-    user_input = st.text_input(
-        f"Enter {search_column} (partial text allowed)"
-    )
+st.divider()
 
-    # Number of recommendations
-    top_n = st.number_input(
-        "Number of recommendations",
-        min_value=1,
-        max_value=50,
-        value=5
-    )
+# ---------------- DATA CLEANING ----------------
+df[search_column] = df[search_column].astype(str).str.lower().str.strip()
 
-    # Optional rating filter
-    rating_col = None
-    rating_cols = [c for c in df.columns if "rating" in c.lower()]
+# ---------------- RECOMMENDATION LOGIC ----------------
+if search_text:
+    search_text = search_text.lower().strip()
 
-    if rating_cols:
-        rating_col = st.selectbox(
-            "Select rating column (optional)",
-            ["None"] + rating_cols
-        )
+    results = df[df[search_column].str.contains(search_text, na=False)]
 
-    min_rating = None
-    if rating_col and rating_col != "None":
-        min_rating = st.slider(
-            "Minimum rating",
-            float(df[rating_col].min()),
-            float(df[rating_col].max()),
-            float(df[rating_col].min())
-        )
+    if rating_column != "None":
+        results = results.sort_values(by=rating_column, ascending=False)
 
-    # --------------------------------------------------
-    # RECOMMENDATION LOGIC
-    # --------------------------------------------------
-    if user_input:
+    results = results.head(num_recs)
 
-        filtered_df = df[
-            df[search_column]
-            .astype(str)
-            .str.contains(user_input, case=False, na=False)
+    if results.empty:
+        st.error("❌ No matching books found.")
+    else:
+        st.success(f"✅ {len(results)} recommendation(s) found")
+
+        display_cols = [
+            col for col in ["title", "authors", "publisher", rating_column]
+            if col in results.columns and col != "None"
         ]
 
-        if rating_col and rating_col != "None":
-            filtered_df = filtered_df[
-                filtered_df[rating_col] >= min_rating
-            ]
+        st.dataframe(results[display_cols].reset_index(drop=True))
 
-        if filtered_df.empty:
-            st.error("❌ No matching books found.")
-        else:
-            st.success(f"✅ {len(filtered_df)} matching books found")
+else:
+    st.info("👆 Enter a search value to get recommendations.")
 
-            st.dataframe(
-                filtered_df.head(top_n).reset_index(drop=True)
-            )
+# ---------------- INSIGHTS SECTION ----------------
+st.divider()
+st.subheader("📊 Dataset Insights")
 
-# ==================================================
-# 2️⃣ DATASET INSIGHTS
-# ==================================================
-if menu == "Dataset Insights":
+st.markdown("""
+**Topics Covered in This Project**
+- Matrix Factorization (conceptual)
+- Content-Based Filtering
+- Collaborative Filtering
+- Cosine Similarity
+- Text Embedding (conceptual)
 
-    st.subheader("📊 Dataset Insights")
+This application demonstrates **content-based filtering** using text matching.
+""")
 
-    # Overview
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Rows", df.shape[0])
-    c2.metric("Total Columns", df.shape[1])
-    c3.metric("Missing Values", int(df.isnull().sum().sum()))
-
-    st.divider()
-
-    st.subheader("📌 Topics Explored (Conceptual Gist)")
-    st.markdown("""
-    **Matrix Factorization** – Decomposing user–item matrices to uncover latent patterns  
-    **Content-Based Filtering** – Recommending books based on similar attributes  
-    **Collaborative Filtering** – Recommendations using user behavior similarities  
-    **Cosine Similarity** – Measuring similarity between books/users  
-    **Text Embedding** – Converting text (titles/authors) into numeric vectors  
-    """)
-
-    st.divider()
-
-    st.subheader("📈 Descriptive Statistics")
-    numeric_df = df.select_dtypes(include=["int64", "float64"])
-    if not numeric_df.empty:
-        st.dataframe(numeric_df.describe())
-    else:
-        st.info("No numerical columns available.")
-
-    st.divider()
-
-    st.subheader("🔍 Dataset Preview")
-    st.dataframe(df.head(10))
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Books", len(df))
+c2.metric("Unique Authors", df["authors"].nunique() if "authors" in df.columns else "NA")
+c3.metric("Total Columns", df.shape[1])
