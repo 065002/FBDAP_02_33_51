@@ -1,139 +1,77 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.decomposition import TruncatedSVD
 
-st.set_page_config(page_title="Recommendation System", layout="wide")
+st.set_page_config(page_title="Book Recommendation System", layout="centered")
 
-# =====================================================
-# TITLE
-# =====================================================
-st.title("📚 Recommendation System – Decision Support Dashboard")
+# ===================== TITLE =====================
+st.title("📚 Simple Book Recommendation System")
 
-st.write("""
-This application builds a **generic recommendation system** using  
-**Collaborative Filtering, Cosine Similarity, and Matrix Factorization**.
-Users can upload **any dataset** and generate recommendations dynamically.
-""")
+st.write(
+    "This application recommends books based on similarity using "
+    "content-based filtering and cosine similarity."
+)
 
 st.divider()
 
-# =====================================================
-# CONCEPT OVERVIEW
-# =====================================================
-st.subheader("📌 Concepts Used (Gist)")
-
-st.markdown("""
-- **Collaborative Filtering** – Learns from user–item interactions  
-- **Cosine Similarity** – Measures similarity between users/items  
-- **Matrix Factorization (SVD)** – Extracts latent features  
-- **Linear Algebra** – Matrix operations on interaction data  
-- **Statistics** – Descriptive stats & similarity inference  
-""")
-
-st.divider()
-
-# =====================================================
-# FILE UPLOAD
-# =====================================================
-uploaded_file = st.file_uploader("📂 Upload CSV Dataset", type="csv")
+# ===================== FILE UPLOAD =====================
+uploaded_file = st.file_uploader("Upload Book Dataset (CSV)", type="csv")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # =====================================================
-    # DATA PREVIEW
-    # =====================================================
-    st.subheader("🔍 Dataset Preview")
+    st.subheader("Dataset Preview")
     st.dataframe(df.head())
 
-    st.subheader("📊 Dataset Summary")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Rows", df.shape[0])
-    c2.metric("Columns", df.shape[1])
-    c3.metric("Missing Values", int(df.isnull().sum().sum()))
-
     st.divider()
 
-    # =====================================================
-    # COLUMN SELECTION (THIS PREVENTS KEYERROR)
-    # =====================================================
-    st.subheader("⚙️ Select Columns for Recommendation")
+    # ===================== COLUMN SELECTION =====================
+    st.subheader("Select Book Column")
 
-    user_col = st.selectbox("Select USER column", df.columns)
-    item_col = st.selectbox("Select ITEM column (Book/Product)", df.columns)
-    rating_col = st.selectbox("Select RATING / SCORE column", df.columns)
-
-    st.divider()
-
-    # =====================================================
-    # DATA PREPARATION
-    # =====================================================
-    df_model = df[[user_col, item_col, rating_col]].dropna()
-
-    st.success("Columns selected successfully. Data prepared.")
-
-    # =====================================================
-    # USER–ITEM MATRIX
-    # =====================================================
-    user_item_matrix = df_model.pivot_table(
-        index=user_col,
-        columns=item_col,
-        values=rating_col,
-        fill_value=0
+    text_column = st.selectbox(
+        "Choose the column containing book titles or descriptions",
+        df.columns
     )
 
-    st.subheader("🧮 User–Item Interaction Matrix")
-    st.dataframe(user_item_matrix.head())
+    # Clean data
+    df = df[[text_column]].dropna()
+    df[text_column] = df[text_column].astype(str)
+
+    st.success("Column selected successfully")
 
     st.divider()
 
-    # =====================================================
-    # COSINE SIMILARITY (ITEM-BASED)
-    # =====================================================
-    st.subheader("🧭 Cosine Similarity (Item-Based)")
+    # ===================== USER INPUT =====================
+    st.subheader("Enter a Book Name")
 
-    item_similarity = cosine_similarity(user_item_matrix.T)
-    similarity_df = pd.DataFrame(
-        item_similarity,
-        index=user_item_matrix.columns,
-        columns=user_item_matrix.columns
-    )
+    user_input = st.text_input("Type a book name from the dataset")
 
-    st.dataframe(similarity_df.iloc[:5, :5])
+    if user_input:
 
-    st.divider()
+        # ===================== VECTORIZE =====================
+        tfidf = TfidfVectorizer(stop_words="english")
+        tfidf_matrix = tfidf.fit_transform(df[text_column])
 
-    # =====================================================
-    # MATRIX FACTORIZATION (SVD)
-    # =====================================================
-    st.subheader("🧠 Matrix Factorization (Latent Features)")
+        # ===================== SIMILARITY =====================
+        similarity = cosine_similarity(tfidf_matrix, tfidf_matrix)
 
-    svd = TruncatedSVD(n_components=5)
-    latent_matrix = svd.fit_transform(user_item_matrix)
+        # Find matching book
+        if user_input not in df[text_column].values:
+            st.error("Book not found in dataset. Please check spelling.")
+        else:
+            index = df[df[text_column] == user_input].index[0]
+            scores = list(enumerate(similarity[index]))
+            scores = sorted(scores, key=lambda x: x[1], reverse=True)
 
-    latent_df = pd.DataFrame(latent_matrix, index=user_item_matrix.index)
-    st.dataframe(latent_df.head())
+            st.subheader("📖 Recommended Books")
 
-    st.divider()
+            recommendations = []
+            for i in scores[1:6]:
+                recommendations.append(df.iloc[i[0]][text_column])
 
-    # =====================================================
-    # RECOMMENDATION ENGINE
-    # =====================================================
-    st.subheader("🎯 Get Book Recommendation")
-
-    selected_item = st.selectbox(
-        "Select a Book / Item",
-        user_item_matrix.columns
-    )
-
-    if st.button("Recommend Similar Items"):
-        scores = similarity_df[selected_item].sort_values(ascending=False)
-        recommendations = scores[1:6]  # Top 5 excluding itself
-
-        st.success("Top Recommended Items:")
-        st.dataframe(recommendations)
+            for book in recommendations:
+                st.write("•", book)
 
 else:
-    st.info("👆 Upload a CSV file to start building the recommendation system.")
+    st.info("Upload a CSV file to start recommending books.")
