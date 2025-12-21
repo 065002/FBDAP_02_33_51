@@ -4,99 +4,113 @@ import pandas as pd
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="Book Recommendation System",
-    layout="centered"
+    layout="wide"
 )
 
-st.title("📚 Book Recommendation System")
-
-st.write(
-    "This application recommends books **only from the given dataset** "
-    "based on user-selected criteria such as author, title, or publisher."
-)
-
-st.divider()
-
-# ---------------- LOAD DATA (PRE-UPLOADED) ----------------
+# ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("FBDAP Dataset.csv", encoding="latin-1")
-    df.columns = df.columns.str.strip().str.lower()
-    return df
+    return pd.read_csv("FBDAP Dataset.csv")
 
 df = load_data()
 
-# ---------------- USER INPUTS ----------------
-st.subheader("🔎 Find Book Recommendations")
+# Normalize column names
+df.columns = df.columns.str.strip()
 
-search_column = st.selectbox(
-    "Select search type",
-    options=df.columns,
-    index=df.columns.get_loc("authors") if "authors" in df.columns else 0
-)
+# ---------------- TITLE ----------------
+st.title("📚 Book Recommendation System")
 
-search_text = st.text_input(
-    f"Enter {search_column} (partial text allowed)"
-)
+# ---------------- TABS ----------------
+tab1, tab2 = st.tabs(["📊 Dataset Summary", "📖 Recommendation System"])
 
-num_recs = st.number_input(
-    "Number of recommendations",
-    min_value=1,
-    max_value=20,
-    value=5
-)
+# ==================================================
+# TAB 1: DATASET SUMMARY (ONLY DATA INSIGHTS)
+# ==================================================
+with tab1:
+    st.subheader("Dataset Overview")
 
-rating_column = st.selectbox(
-    "Select rating column (optional)",
-    options=["None"] + df.select_dtypes(include="number").columns.tolist()
-)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Rows", df.shape[0])
+    c2.metric("Columns", df.shape[1])
+    c3.metric("Missing Values", int(df.isnull().sum().sum()))
 
-st.divider()
+    st.divider()
 
-# ---------------- DATA CLEANING ----------------
-df[search_column] = df[search_column].astype(str).str.lower().str.strip()
+    st.subheader("Column Information")
+    col_info = pd.DataFrame({
+        "Column Name": df.columns,
+        "Data Type": df.dtypes.astype(str)
+    })
+    st.dataframe(col_info, use_container_width=True)
 
-# ---------------- RECOMMENDATION LOGIC ----------------
-if search_text:
-    search_text = search_text.lower().strip()
+    st.divider()
 
-    results = df[df[search_column].str.contains(search_text, na=False)]
+    st.subheader("Dataset Preview")
+    st.dataframe(df.head(10), use_container_width=True)
 
-    if rating_column != "None":
-        results = results.sort_values(by=rating_column, ascending=False)
+    st.divider()
 
-    results = results.head(num_recs)
+    numeric_cols = df.select_dtypes(include="number")
+    if not numeric_cols.empty:
+        st.subheader("Descriptive Statistics")
+        st.dataframe(numeric_cols.describe(), use_container_width=True)
 
-    if results.empty:
-        st.error("❌ No matching books found.")
-    else:
-        st.success(f"✅ {len(results)} recommendation(s) found")
+# ==================================================
+# TAB 2: BOOK RECOMMENDATION SYSTEM
+# ==================================================
+with tab2:
+    st.subheader("Find Book Recommendations")
 
-        display_cols = [
-            col for col in ["title", "authors", "publisher", rating_column]
-            if col in results.columns and col != "None"
+    # ---- USER INPUTS ----
+    search_column = st.selectbox(
+        "Select search type",
+        options=df.columns.tolist()
+    )
+
+    search_text = st.text_input(
+        f"Enter {search_column} (partial text allowed)",
+        placeholder="e.g. J.K. Rowling"
+    )
+
+    num_recommendations = st.number_input(
+        "Number of recommendations",
+        min_value=1,
+        max_value=50,
+        value=5
+    )
+
+    rating_column = st.selectbox(
+        "Select rating column (optional)",
+        options=["None"] + df.select_dtypes(include="number").columns.tolist()
+    )
+
+    # ---- PROCESSING ----
+    if search_text.strip() != "":
+        # Safe string matching
+        filtered_df = df[
+            df[search_column]
+            .astype(str)
+            .str.lower()
+            .str.contains(search_text.lower(), na=False)
         ]
 
-        st.dataframe(results[display_cols].reset_index(drop=True))
+        if filtered_df.empty:
+            st.error("❌ No matching books found.")
+        else:
+            # Optional sorting by rating
+            if rating_column != "None":
+                filtered_df = filtered_df.sort_values(
+                    by=rating_column,
+                    ascending=False
+                )
 
-else:
-    st.info("👆 Enter a search value to get recommendations.")
+            st.success(f"✅ {len(filtered_df)} matching books found")
 
-# ---------------- INSIGHTS SECTION ----------------
-st.divider()
-st.subheader("📊 Dataset Insights")
+            st.subheader("Recommended Books")
+            st.dataframe(
+                filtered_df.head(num_recommendations),
+                use_container_width=True
+            )
 
-st.markdown("""
-**Topics Covered in This Project**
-- Matrix Factorization (conceptual)
-- Content-Based Filtering
-- Collaborative Filtering
-- Cosine Similarity
-- Text Embedding (conceptual)
-
-This application demonstrates **content-based filtering** using text matching.
-""")
-
-c1, c2, c3 = st.columns(3)
-c1.metric("Total Books", len(df))
-c2.metric("Unique Authors", df["authors"].nunique() if "authors" in df.columns else "NA")
-c3.metric("Total Columns", df.shape[1])
+    else:
+        st.info("👆 Enter text to get recommendations")
