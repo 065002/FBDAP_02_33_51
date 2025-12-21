@@ -1,8 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
 from difflib import get_close_matches
 
 # ---------------- PAGE CONFIG ----------------
@@ -11,146 +8,106 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- LOAD DATASET ----------------
+# ---------------- TITLE ----------------
+st.title("📚 Book Recommendation System")
+
+st.write(
+    "This application allows users to explore dataset insights and "
+    "get book recommendations using partial matching and similarity logic."
+)
+
+# ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
     return pd.read_csv("FBDAP Dataset.csv")
 
 df = load_data()
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("📚 Navigation")
-page = st.sidebar.radio(
+# ---------------- SIDEBAR NAVIGATION ----------------
+section = st.sidebar.radio(
     "Go to",
-    ["📘 Book Recommendation System", "📊 Insights & Concepts"]
+    ["Insights", "Book Recommendation System"]
 )
 
 # =====================================================
-# PAGE 1: BOOK RECOMMENDATION SYSTEM
+# ======================= INSIGHTS ====================
 # =====================================================
-if page == "📘 Book Recommendation System":
+if section == "Insights":
 
-    st.title("📘 Book Recommendation System")
+    st.header("📊 Dataset Insights & Concepts")
 
-    st.write(
-        "Enter a book name and the system will recommend similar books "
-        "using **text similarity and cosine similarity**."
-    )
-
-    # -------- Identify Book Column --------
-    book_col = df.columns[0]   # assumes first column = book name
-
-    # -------- Text Vectorization --------
-    tfidf = TfidfVectorizer(stop_words="english")
-    tfidf_matrix = tfidf.fit_transform(df[book_col].astype(str))
-
-    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
-
-    # -------- User Input --------
-    user_input = st.text_input("🔍 Enter a book name")
-
-    if user_input:
-        matches = get_close_matches(
-            user_input,
-            df[book_col].astype(str).tolist(),
-            n=1,
-            cutoff=0.4
-        )
-
-        if matches:
-            selected_book = matches[0]
-            idx = df[df[book_col] == selected_book].index[0]
-
-            similarity_scores = list(enumerate(cosine_sim[idx]))
-            similarity_scores = sorted(
-                similarity_scores,
-                key=lambda x: x[1],
-                reverse=True
-            )
-
-            recommendations = similarity_scores[1:6]
-            rec_books = [df.iloc[i[0]][book_col] for i in recommendations]
-
-            st.success(f"Recommendations similar to **{selected_book}**")
-            for book in rec_books:
-                st.write("📖", book)
-
-        else:
-            st.warning("No similar book found. Try another name.")
-
-# =====================================================
-# PAGE 2: INSIGHTS & CONCEPTS
-# =====================================================
-else:
-
-    st.title("📊 Dataset Insights & Recommendation Concepts")
-
-    # -------- Dataset Overview --------
-    st.subheader("📂 Dataset Overview")
+    st.subheader("Dataset Overview")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Records", df.shape[0])
-    c2.metric("Total Columns", df.shape[1])
+    c1.metric("Rows", df.shape[0])
+    c2.metric("Columns", df.shape[1])
     c3.metric("Missing Values", int(df.isnull().sum().sum()))
 
     st.divider()
 
-    # -------- Preview --------
-    st.subheader("🔍 Dataset Preview")
+    st.subheader("🔍 Preview")
     st.dataframe(df.head())
 
     st.divider()
 
-    # -------- Concepts Section --------
-    st.subheader("📌 Topics Explored")
+    st.subheader("📌 Recommendation System Concepts (Gist)")
 
     st.markdown("""
-    **Matrix Factorization**  
-    Decomposes user–item interaction matrices into latent features.
+**Matrix Factorization**  
+Breaks user–item interaction data into latent factors to uncover hidden preferences.
 
-    **Content-Based Filtering**  
-    Recommends books similar in content to user preferences.
+**Content-Based Filtering**  
+Recommends items similar to what the user already likes based on attributes.
 
-    **Collaborative Filtering**  
-    Uses user behavior similarity to recommend items.
+**Collaborative Filtering**  
+Uses behavior of similar users to generate recommendations.
 
-    **Cosine Similarity**  
-    Measures similarity between book feature vectors.
+**Cosine Similarity**  
+Measures similarity between vectors to find related users or items.
 
-    **Text Embedding**  
-    Converts book titles/descriptions into numerical vectors.
-    """)
+**Text Embedding**  
+Converts textual information (book titles, authors) into numerical form for comparison.
+""")
 
-    st.divider()
+# =====================================================
+# ============ BOOK RECOMMENDATION SYSTEM ==============
+# =====================================================
+if section == "Book Recommendation System":
 
-    # -------- Statistical Insights --------
-    st.subheader("📈 Statistical Insights")
+    st.header("📖 Get Book Recommendations")
 
-    numeric_df = df.select_dtypes(include=["int64", "float64"])
+    st.write(
+        "Select a column, enter a keyword (partial name allowed), "
+        "and get similar book recommendations."
+    )
 
-    if not numeric_df.empty:
-        st.dataframe(numeric_df.describe())
+    # ---------------- COLUMN SELECTION ----------------
+    text_columns = df.select_dtypes(include="object").columns.tolist()
+
+    if len(text_columns) == 0:
+        st.error("No text columns available in this dataset.")
     else:
-        st.info("No numerical columns available for statistical analysis.")
+        selected_column = st.selectbox(
+            "Select the column to search",
+            text_columns
+        )
 
-    st.divider()
+        user_input = st.text_input(
+            f"Enter {selected_column} (partial name allowed)"
+        )
 
-    # -------- Linear Algebra Explanation --------
-    st.subheader("🧮 Linear Algebra in Recommendation Systems")
+        if user_input:
+            values = df[selected_column].dropna().astype(str).unique().tolist()
 
-    st.write("""
-    - User–Item data is represented as matrices  
-    - Similarity is computed using vector operations  
-    - Dimensionality reduction helps uncover hidden patterns
-    """)
+            matches = get_close_matches(
+                user_input,
+                values,
+                n=10,
+                cutoff=0.3   # allows partial match
+            )
 
-    st.divider()
-
-    # -------- Time Series (Conceptual) --------
-    st.subheader("⏳ Time Series (Conceptual)")
-
-    st.write("""
-    Moving Averages help smooth trends and understand changes in user behavior over time.
-    """)
-
-# ---------------- FOOTER ----------------
-st.caption("Built using Streamlit | Book Recommendation System")
+            if matches:
+                st.subheader("✅ Recommended Results")
+                result_df = df[df[selected_column].isin(matches)]
+                st.dataframe(result_df)
+            else:
+                st.warning("No matching results found. Try another keyword.")
