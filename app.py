@@ -1,150 +1,170 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
-# -------------------- PAGE CONFIG --------------------
-st.set_page_config(
-    page_title="Book Recommendation System",
-    layout="wide"
-)
+st.set_page_config(page_title="Book Recommendation System", layout="wide")
 
-# -------------------- LOAD DATA --------------------
+# ===================== LOAD MAIN DATASET =====================
 @st.cache_data
-def load_data():
-    df = pd.read_csv("FBDAP Dataset.csv")
+def load_main_data():
+    return pd.read_csv("FBDAP Dataset.csv")
 
-    # Trim spaces ONLY at the end (important requirement)
-    df = df.applymap(
-        lambda x: x.rstrip() if isinstance(x, str) else x
-    )
+df_main = load_main_data()
 
-    return df
+# ===================== HELPER FUNCTIONS =====================
+def clean_text(series):
+    return series.astype(str).str.lower().str.strip()
 
-df = load_data()
+def get_recommendations(df, col, query, top_n, rating_col=None):
+    df = df.copy()
+    df[col] = clean_text(df[col])
 
-# -------------------- TABS (ORDER MATTERS) --------------------
-tab_rec, tab_summary = st.tabs([
+    query = query.lower().strip()
+
+    matches = df[df[col].str.contains(query, na=False)]
+
+    if rating_col and rating_col in df.columns:
+        matches = matches.sort_values(by=rating_col, ascending=False)
+
+    return matches.head(top_n)
+
+# ===================== TABS =====================
+tab1, tab2, tab3 = st.tabs([
     "📚 Book Recommendation System",
-    "📊 Dataset Summary"
+    "📊 Dataset Summary",
+    "📂 Custom Dataset Recommender"
 ])
 
-# ==============================================================
-# TAB 1: BOOK RECOMMENDATION SYSTEM
-# ==============================================================
-with tab_rec:
-
+# ============================================================
+# TAB 1: BOOK RECOMMENDATION SYSTEM (MAIN)
+# ============================================================
+with tab1:
     st.header("📚 Book Recommendation System")
 
-    # Select column
-    search_col = st.selectbox(
-        "Select search column",
-        options=df.columns
-    )
+    text_columns = df_main.select_dtypes(include="object").columns.tolist()
+    numeric_columns = df_main.select_dtypes(include=["int64", "float64"]).columns.tolist()
 
-    # Example value from selected column
-    example_value = (
-        df[search_col]
-        .dropna()
-        .astype(str)
-        .iloc[0]
-    )
+    col1, col2 = st.columns(2)
 
-    user_input = st.text_input(
-        f"Enter {search_col} (partial match allowed)",
-        placeholder=f"e.g. {example_value}"
-    )
+    with col1:
+        search_col = st.selectbox("Select search column", text_columns)
 
-    top_n = st.number_input(
-        "Number of recommendations",
-        min_value=1,
-        max_value=20,
-        value=5
-    )
-
-    rating_col = st.selectbox(
-        "Select rating column (optional)",
-        options=["None"] + list(df.select_dtypes(include=np.number).columns)
-    )
-
-    st.divider()
-
-    if user_input.strip() != "":
-        # Case-insensitive partial matching
-        mask = df[search_col].astype(str).str.contains(
-            user_input,
-            case=False,
-            na=False
+        example_value = df_main[search_col].dropna().iloc[0]
+        user_input = st.text_input(
+            f"Enter {search_col} (partial text allowed)",
+            placeholder=f"e.g. {example_value}"
         )
 
-        results = df[mask].copy()
+    with col2:
+        top_n = st.number_input(
+            "Number of recommendations",
+            min_value=1,
+            max_value=20,
+            value=5
+        )
 
-        if rating_col != "None" and rating_col in results.columns:
-            results = results.sort_values(
-                by=rating_col,
-                ascending=False
-            )
+        rating_col = st.selectbox(
+            "Select rating column (optional)",
+            ["None"] + numeric_columns
+        )
 
-        results = results.head(top_n)
+    if user_input:
+        results = get_recommendations(
+            df_main,
+            search_col,
+            user_input,
+            top_n,
+            rating_col if rating_col != "None" else None
+        )
 
         if len(results) == 0:
-            st.error("❌ No matching records found in the dataset.")
+            st.error("❌ No matching books found.")
         else:
-            st.success(f"✅ Showing {len(results)} recommendation(s)")
+            st.success(f"✅ Showing {len(results)} recommendations")
             st.dataframe(results.reset_index(drop=True))
 
     else:
-        st.info("👆 Enter text to get recommendations")
+        st.info("👆 Enter text to get book recommendations")
 
-# ==============================================================
-# TAB 2: DATASET SUMMARY (NO PROJECT TEXT HERE)
-# ==============================================================
-with tab_summary:
-
+# ============================================================
+# TAB 2: DATASET SUMMARY (ONLY SUMMARY — NO THEORY)
+# ============================================================
+with tab2:
     st.header("📊 Dataset Summary")
 
-    # Overview metrics
     c1, c2, c3 = st.columns(3)
+    c1.metric("Total Rows", df_main.shape[0])
+    c2.metric("Total Columns", df_main.shape[1])
+    c3.metric("Missing Values", int(df_main.isnull().sum().sum()))
 
-    c1.metric("Total Rows", df.shape[0])
-    c2.metric("Total Columns", df.shape[1])
+    st.subheader("🔍 Preview")
+    st.dataframe(df_main.head())
 
-    # Count NULLs (spaces already trimmed)
-    null_count = df.isna().sum().sum()
-    c3.metric("Missing Values", int(null_count))
+    st.subheader("📈 Numerical Summary")
+    num_df = df_main.select_dtypes(include=["int64", "float64"])
+    if not num_df.empty:
+        st.dataframe(num_df.describe())
+    else:
+        st.info("No numerical columns available.")
 
-    st.divider()
+# ============================================================
+# TAB 3: CUSTOM DATASET RECOMMENDER
+# ============================================================
+with tab3:
+    st.header("📂 Custom Dataset Recommendation System")
 
-    # Column info
-    st.subheader("Column Information")
-    col_info = pd.DataFrame({
-        "Column": df.columns,
-        "Data Type": df.dtypes.astype(str),
-        "Missing Values": df.isna().sum().values
-    })
-    st.dataframe(col_info)
+    uploaded_file = st.file_uploader("Upload your CSV dataset", type="csv")
 
-    st.divider()
+    if uploaded_file:
+        df_custom = pd.read_csv(uploaded_file)
 
-    # Numeric summary
-    num_cols = df.select_dtypes(include=np.number)
+        text_cols = df_custom.select_dtypes(include="object").columns.tolist()
+        num_cols = df_custom.select_dtypes(include=["int64", "float64"]).columns.tolist()
 
-    if not num_cols.empty:
-        st.subheader("Descriptive Statistics (Numeric Columns)")
-        st.dataframe(num_cols.describe())
+        st.subheader("📊 Custom Dataset Summary")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Rows", df_custom.shape[0])
+        c2.metric("Columns", df_custom.shape[1])
+        c3.metric("Missing Values", int(df_custom.isnull().sum().sum()))
 
-    st.divider()
+        st.dataframe(df_custom.head())
 
-    # Categorical summary
-    cat_cols = df.select_dtypes(include="object")
+        st.subheader("🔎 Get Recommendations")
 
-    if not cat_cols.empty:
-        st.subheader("Top Values (Categorical Columns)")
-        for col in cat_cols.columns:
-            st.write(f"**{col}**")
-            st.dataframe(
-                cat_cols[col]
-                .value_counts()
-                .head(5)
-                .reset_index()
-                .rename(columns={"index": col, col: "Count"})
+        search_col = st.selectbox("Search column", text_cols)
+        example = df_custom[search_col].dropna().iloc[0]
+
+        query = st.text_input(
+            "Enter value (partial allowed)",
+            placeholder=f"e.g. {example}"
+        )
+
+        top_n = st.number_input(
+            "Number of recommendations",
+            min_value=1,
+            max_value=20,
+            value=5,
+            key="custom_top"
+        )
+
+        rating_col = st.selectbox(
+            "Rating column (optional)",
+            ["None"] + num_cols,
+            key="custom_rating"
+        )
+
+        if query:
+            results = get_recommendations(
+                df_custom,
+                search_col,
+                query,
+                top_n,
+                rating_col if rating_col != "None" else None
             )
+
+            if len(results) == 0:
+                st.error("❌ No matching records found.")
+            else:
+                st.success("✅ Recommendations")
+                st.dataframe(results.reset_index(drop=True))
