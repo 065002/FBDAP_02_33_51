@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 st.set_page_config(page_title="Book Recommendation System", layout="centered")
 
 # ===================== TITLE =====================
-st.title("📚 Simple Book Recommendation System")
+st.title("📚 Book Recommendation System")
 
 st.write(
     "This application recommends books based on similarity using "
