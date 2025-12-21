@@ -1,116 +1,150 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
-# ---------------- PAGE CONFIG ----------------
+# -------------------- PAGE CONFIG --------------------
 st.set_page_config(
     page_title="Book Recommendation System",
     layout="wide"
 )
 
-# ---------------- LOAD DATA ----------------
+# -------------------- LOAD DATA --------------------
 @st.cache_data
 def load_data():
-    return pd.read_csv("FBDAP Dataset.csv")
+    df = pd.read_csv("FBDAP Dataset.csv")
+
+    # Trim spaces ONLY at the end (important requirement)
+    df = df.applymap(
+        lambda x: x.rstrip() if isinstance(x, str) else x
+    )
+
+    return df
 
 df = load_data()
 
-# Normalize column names
-df.columns = df.columns.str.strip()
+# -------------------- TABS (ORDER MATTERS) --------------------
+tab_rec, tab_summary = st.tabs([
+    "📚 Book Recommendation System",
+    "📊 Dataset Summary"
+])
 
-# ---------------- TITLE ----------------
-st.title("📚 Book Recommendation System")
+# ==============================================================
+# TAB 1: BOOK RECOMMENDATION SYSTEM
+# ==============================================================
+with tab_rec:
 
-# ---------------- TABS ----------------
-tab1, tab2 = st.tabs(["📊 Dataset Summary", "📖 Recommendation System"])
+    st.header("📚 Book Recommendation System")
 
-# ==================================================
-# TAB 1: DATASET SUMMARY (ONLY DATA INSIGHTS)
-# ==================================================
-with tab1:
-    st.subheader("Dataset Overview")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Rows", df.shape[0])
-    c2.metric("Columns", df.shape[1])
-    c3.metric("Missing Values", int(df.isnull().sum().sum()))
-
-    st.divider()
-
-    st.subheader("Column Information")
-    col_info = pd.DataFrame({
-        "Column Name": df.columns,
-        "Data Type": df.dtypes.astype(str)
-    })
-    st.dataframe(col_info, use_container_width=True)
-
-    st.divider()
-
-    st.subheader("Dataset Preview")
-    st.dataframe(df.head(10), use_container_width=True)
-
-    st.divider()
-
-    numeric_cols = df.select_dtypes(include="number")
-    if not numeric_cols.empty:
-        st.subheader("Descriptive Statistics")
-        st.dataframe(numeric_cols.describe(), use_container_width=True)
-
-# ==================================================
-# TAB 2: BOOK RECOMMENDATION SYSTEM
-# ==================================================
-with tab2:
-    st.subheader("Find Book Recommendations")
-
-    # ---- USER INPUTS ----
-    search_column = st.selectbox(
-        "Select search type",
-        options=df.columns.tolist()
+    # Select column
+    search_col = st.selectbox(
+        "Select search column",
+        options=df.columns
     )
 
-    search_text = st.text_input(
-        f"Enter {search_column} (partial text allowed)",
-        placeholder="e.g. J.K. Rowling"
+    # Example value from selected column
+    example_value = (
+        df[search_col]
+        .dropna()
+        .astype(str)
+        .iloc[0]
     )
 
-    num_recommendations = st.number_input(
+    user_input = st.text_input(
+        f"Enter {search_col} (partial match allowed)",
+        placeholder=f"e.g. {example_value}"
+    )
+
+    top_n = st.number_input(
         "Number of recommendations",
         min_value=1,
-        max_value=50,
+        max_value=20,
         value=5
     )
 
-    rating_column = st.selectbox(
+    rating_col = st.selectbox(
         "Select rating column (optional)",
-        options=["None"] + df.select_dtypes(include="number").columns.tolist()
+        options=["None"] + list(df.select_dtypes(include=np.number).columns)
     )
 
-    # ---- PROCESSING ----
-    if search_text.strip() != "":
-        # Safe string matching
-        filtered_df = df[
-            df[search_column]
-            .astype(str)
-            .str.lower()
-            .str.contains(search_text.lower(), na=False)
-        ]
+    st.divider()
 
-        if filtered_df.empty:
-            st.error("❌ No matching books found.")
-        else:
-            # Optional sorting by rating
-            if rating_column != "None":
-                filtered_df = filtered_df.sort_values(
-                    by=rating_column,
-                    ascending=False
-                )
+    if user_input.strip() != "":
+        # Case-insensitive partial matching
+        mask = df[search_col].astype(str).str.contains(
+            user_input,
+            case=False,
+            na=False
+        )
 
-            st.success(f"✅ {len(filtered_df)} matching books found")
+        results = df[mask].copy()
 
-            st.subheader("Recommended Books")
-            st.dataframe(
-                filtered_df.head(num_recommendations),
-                use_container_width=True
+        if rating_col != "None" and rating_col in results.columns:
+            results = results.sort_values(
+                by=rating_col,
+                ascending=False
             )
+
+        results = results.head(top_n)
+
+        if len(results) == 0:
+            st.error("❌ No matching records found in the dataset.")
+        else:
+            st.success(f"✅ Showing {len(results)} recommendation(s)")
+            st.dataframe(results.reset_index(drop=True))
 
     else:
         st.info("👆 Enter text to get recommendations")
+
+# ==============================================================
+# TAB 2: DATASET SUMMARY (NO PROJECT TEXT HERE)
+# ==============================================================
+with tab_summary:
+
+    st.header("📊 Dataset Summary")
+
+    # Overview metrics
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Total Rows", df.shape[0])
+    c2.metric("Total Columns", df.shape[1])
+
+    # Count NULLs (spaces already trimmed)
+    null_count = df.isna().sum().sum()
+    c3.metric("Missing Values", int(null_count))
+
+    st.divider()
+
+    # Column info
+    st.subheader("Column Information")
+    col_info = pd.DataFrame({
+        "Column": df.columns,
+        "Data Type": df.dtypes.astype(str),
+        "Missing Values": df.isna().sum().values
+    })
+    st.dataframe(col_info)
+
+    st.divider()
+
+    # Numeric summary
+    num_cols = df.select_dtypes(include=np.number)
+
+    if not num_cols.empty:
+        st.subheader("Descriptive Statistics (Numeric Columns)")
+        st.dataframe(num_cols.describe())
+
+    st.divider()
+
+    # Categorical summary
+    cat_cols = df.select_dtypes(include="object")
+
+    if not cat_cols.empty:
+        st.subheader("Top Values (Categorical Columns)")
+        for col in cat_cols.columns:
+            st.write(f"**{col}**")
+            st.dataframe(
+                cat_cols[col]
+                .value_counts()
+                .head(5)
+                .reset_index()
+                .rename(columns={"index": col, col: "Count"})
+            )
